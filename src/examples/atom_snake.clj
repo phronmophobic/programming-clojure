@@ -3,7 +3,8 @@
 ; Mark Volkmann's snake: http://www.ociweb.com/mark/programming/ClojureSnake.html 
 
 (ns examples.atom-snake
-  (:require [membrane.ui :as ui]))
+  (:require [membrane.ui :as ui]
+            [com.phronemophobic.grease.ios :as ios]))
 
 (defonce log (atom []))
 ; ----------------------------------------------------------
@@ -207,22 +208,23 @@
 
 
 
-(defn repaint! []
-  (reset! main-view
-          [(ui/wrap-on
-            :mouse-down
-            (fn [handler p]
-              (swap! log conj (mapv int p))
-              (handler p))
-            [#_(ui/translate 250 20
-                           (apply
-                            ui/vertical-layout
-                            (for [msg (take-last 5 @log)]
-                              (ui/label (pr-str msg)))))
+(defn render []
+  [(ui/wrap-on
+    :mouse-down
+    (fn [handler p]
+      (swap! log conj (mapv int p))
+      (handler p))
+    [#_(ui/translate 250 20
+                     (apply
+                      ui/vertical-layout
+                      (for [msg (take-last 5 @log)]
+                        (ui/label (pr-str msg)))))
 
-             (ui/translate 10 50
-                           (game-panel @game-state))])])
-  )
+     (ui/translate 10 50
+                   (game-panel @game-state))])])
+(defn repaint! []
+  (when-let [repaint! (:repaint! @game-state)]
+    (repaint!)))
 
 (add-watch game-state ::update-view
            (fn [k ref old updated]
@@ -232,9 +234,6 @@
            (fn [k ref old updated]
              (repaint!)))
 
-
-(swap! game-state identity)
-
 (add-watch game-state ::run-snake
            (fn [k ref old updated]
              (when (and (:running? updated)
@@ -242,5 +241,14 @@
                (future
                  (while (:running? @game-state)
                    (step)
-                   (sleep turn-millis))))))
+                   (ios/sleep turn-millis))))))
 
+
+(defn -main []
+  (let [{:keys [repaint!]}
+        (app/show! {:on-close (fn []
+                                (swap! game-state assoc :running? false)
+                                (swap! game-state dissoc :repaint!))
+                    :view-fn render})]
+    (swap! game-state assoc :repaint! repaint!)
+    (swap! game-state assoc :running? true)))
